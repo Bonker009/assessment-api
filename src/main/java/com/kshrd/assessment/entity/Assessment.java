@@ -1,0 +1,53 @@
+package com.kshrd.assessment.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.annotation.LastModifiedDate;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.UUID;
+
+@Entity
+@Table(name = "assessments")
+@Getter
+@Setter
+public class Assessment {
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID assessment_id;
+
+    private String name;
+    private Boolean isQuiz;
+    private UUID subjectId;
+    
+    @OneToMany(mappedBy = "assessment", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Section> sections;
+    
+    @Column(name = "assessment_date")
+    private LocalDate assessmentDate;
+    
+    @Column(name = "start_time")
+    private LocalTime startTime;
+    
+    @Column(name = "end_time")
+    private LocalTime endTime;
+    
+    @Column(name = "is_published")
+    private Boolean isPublished = false;
+    
+    @CreatedBy
+    private UUID createdBy;
+    @LastModifiedBy
+    private UUID updatedBy;
+    @CreatedDate
+    private LocalDateTime createdAt;
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
+}

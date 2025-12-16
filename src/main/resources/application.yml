@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: assessment-management
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-url: http://localhost:9090/realms/user-management
+          jwk-set-uri: http://localhost:9090/realms/user-management/protocol/openid-connect/certs
+  datasource:
+    url: jdbc:postgresql://localhost:5433/exam_db
+    username: kshrd
+    password: 1234
+    driver-class-name: org.postgresql.Driver
+logging:
+  level:
+    com.kshrd.assessment: debug
+jwt:
+  auth:
+    converter:
+      resource-id: exam-backend-dev
+      principle-attribute: preferred_username
+keycloak:
+  auth-server-url: http://localhost:9090
+  realm: user-management
+  client-id: exam-backend-dev
+  client-secret: yth2yJzd86Xoyk2SvTdXe4R9dN93FkFs
