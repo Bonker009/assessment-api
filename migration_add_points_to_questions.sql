@@ -1,0 +1,3 @@
+
+ALTER TABLE questions 
+ADD COLUMN points DOUBLE PRECISION;

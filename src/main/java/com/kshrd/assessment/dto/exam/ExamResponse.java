@@ -1,8 +1,7 @@
 package com.kshrd.assessment.dto.exam;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.util.List;
 import java.util.UUID;
 
 public record ExamResponse(
@@ -10,13 +9,13 @@ public record ExamResponse(
         String name,
         Boolean isQuiz,
         UUID subjectId,
-        LocalDate assessmentDate,
-        LocalTime startTime,
-        LocalTime endTime,
-        Boolean isPublished,
+        Schedule schedule,
         UUID createdBy,
         UUID updatedBy,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        Long totalSections,
+        Long totalQuestions,
+        List<SectionResponse> sections
 ) {
 }

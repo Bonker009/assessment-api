@@ -35,7 +35,7 @@ public class StudentAssessment {
     private Double score = 0.0;
     
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", columnDefinition = "status")
+    @Column(name = "status", length = 50)
     private Status status = Status.ASSIGNED;
     
     @Column(name = "join_at")

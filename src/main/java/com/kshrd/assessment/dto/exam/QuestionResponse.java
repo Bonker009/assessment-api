@@ -9,6 +9,7 @@ public record QuestionResponse(
         QuestionType questionType,
         String image,
         Map<String, Object> questionContent,
-        UUID sectionId
+        UUID sectionId,
+        Double points
 ) {
 }

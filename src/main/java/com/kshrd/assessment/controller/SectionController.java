@@ -2,6 +2,8 @@ package com.kshrd.assessment.controller;
 
 import com.kshrd.assessment.dto.exam.SectionResponse;
 import com.kshrd.assessment.dto.exam.SectionUpdateRequest;
+import com.kshrd.assessment.dto.response.ApiResponse;
+import com.kshrd.assessment.dto.response.ResponseUtil;
 import com.kshrd.assessment.service.IExamService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -27,27 +29,27 @@ public class SectionController {
     @GetMapping("/{sectionId}")
     @PreAuthorize("hasRole('student') or hasRole('teacher') or hasRole('admin')")
     @Operation(summary = "Get section by ID", description = "Retrieves a specific section by its unique identifier including section name and associated assessment ID")
-    public ResponseEntity<SectionResponse> getSection(@PathVariable UUID sectionId) {
+    public ResponseEntity<ApiResponse<SectionResponse>> getSection(@PathVariable UUID sectionId) {
         Optional<SectionResponse> response = examService.getSectionById(sectionId);
-        return response.map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        return response.map(ResponseUtil::ok)
+                .orElse(ResponseUtil.notFound("Section not found"));
     }
 
     @PutMapping("/{sectionId}")
     @PreAuthorize("hasRole('teacher') or hasRole('admin')")
     @Operation(summary = "Update section", description = "Updates the name of an existing section within an exam")
-    public ResponseEntity<Void> updateSection(
+    public ResponseEntity<ApiResponse<Void>> updateSection(
             @PathVariable UUID sectionId,
             @RequestBody @Valid SectionUpdateRequest request) {
         examService.updateSection(sectionId, request);
-        return ResponseEntity.ok().build();
+        return ResponseUtil.ok(null, "Section updated successfully");
     }
 
     @DeleteMapping("/{sectionId}")
     @PreAuthorize("hasRole('teacher') or hasRole('admin')")
     @Operation(summary = "Delete section", description = "Deletes a section and all its associated questions from an exam")
-    public ResponseEntity<Void> deleteSection(@PathVariable UUID sectionId) {
+    public ResponseEntity<ApiResponse<Void>> deleteSection(@PathVariable UUID sectionId) {
         examService.deleteSection(sectionId);
-        return ResponseEntity.noContent().build();
+        return ResponseUtil.noContent("Section deleted successfully");
     }
 }

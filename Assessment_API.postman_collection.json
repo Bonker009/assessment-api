@@ -1,0 +1,688 @@
+{
+	"info": {
+		"_postman_id": "assessment-api-collection",
+		"name": "Assessment Management API",
+		"description": "Complete API collection for Assessment Management System",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has success field\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"teacher1\",\n    \"email\": \"teacher1@example.com\",\n    \"password\": \"password123\",\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"role\": \"teacher\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response contains access token\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.accessToken) {",
+									"        pm.environment.set(\"accessToken\", jsonData.data.accessToken);",
+									"        pm.environment.set(\"refreshToken\", jsonData.data.refreshToken || \"\");",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"teacher1\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "auth", "login"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Exam Management",
+			"item": [
+				{
+					"name": "Create Exam",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"if (!pm.environment.get(\"accessToken\")) {",
+									"    console.log(\"Warning: No access token found. Please login first.\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response contains exam data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.assessmentId) {",
+									"        pm.environment.set(\"examId\", jsonData.data.assessmentId);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Midterm Exam 2024\",\n    \"isQuiz\": false,\n    \"subjectId\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"schedule\": {\n        \"assessmentDate\": \"2024-12-20\",\n        \"startTime\": \"09:00:00\",\n        \"endTime\": \"11:00:00\",\n        \"isPublished\": false\n    },\n    \"sections\": [\n        {\n            \"sectionName\": \"Section 1: Multiple Choice\",\n            \"questions\": [\n                {\n                    \"questionType\": \"MCQ\",\n                    \"questionContent\": {\n                        \"question\": \"What is 2+2?\",\n                        \"options\": [\"2\", \"3\", \"4\", \"5\"],\n                        \"correct\": 2\n                    },\n                    \"points\": 10.0\n                },\n                {\n                    \"questionType\": \"TRUE_FALSE\",\n                    \"questionContent\": {\n                        \"question\": \"Java is a programming language\",\n                        \"correct\": true\n                    },\n                    \"points\": 5.0\n                }\n            ]\n        },\n        {\n            \"sectionName\": \"Section 2: Coding\",\n            \"questions\": [\n                {\n                    \"questionType\": \"CODING\",\n                    \"questionContent\": {\n                        \"question\": \"Write a function to reverse a string\",\n                        \"language\": \"java\"\n                    },\n                    \"points\": 20.0\n                }\n            ]\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/exams",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "exams"]
+						}
+					}
+				},
+				{
+					"name": "Get All Exams",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/exams",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "exams"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Active Exams",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/exams/active",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "exams", "active"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Exam by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/exams/{{examId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "exams", "{{examId}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Exams",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/exams/my-exams",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "exams", "my-exams"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Exam Schedule",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/exams/{{examId}}/schedule",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "exams", "{{examId}}", "schedule"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Exam",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Midterm Exam 2024\",\n    \"isQuiz\": false,\n    \"subjectId\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"schedule\": {\n        \"assessmentDate\": \"2024-12-20\",\n        \"startTime\": \"09:00:00\",\n        \"endTime\": \"11:00:00\",\n        \"isPublished\": false\n    }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/exams/{{examId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "exams", "{{examId}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Exam Schedule",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"assessmentDate\": \"2024-12-21\",\n    \"startTime\": \"10:00:00\",\n    \"endTime\": \"12:00:00\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/exams/{{examId}}/schedule",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "exams", "{{examId}}", "schedule"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Publish Exam",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/exams/{{examId}}/publish",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "exams", "{{examId}}", "publish"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Unpublish Exam",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/exams/{{examId}}/unpublish",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "exams", "{{examId}}", "unpublish"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Clone Exam",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/exams/{{examId}}/clone",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "exams", "{{examId}}", "clone"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Exam",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/exams/{{examId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "exams", "{{examId}}"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Student Assessment",
+			"item": [
+				{
+					"name": "Assign Assessment to Student",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response contains assessment data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.assessmentId) {",
+									"        pm.environment.set(\"studentAssessmentId\", jsonData.data.assessmentId);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"studentId\": \"{{studentId}}\",\n    \"assessmentId\": \"{{examId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/student-assessments/assign",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "student-assessments", "assign"]
+						}
+					}
+				},
+				{
+					"name": "Start Assessment",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Assessment status is IN_PROGRESS\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.status) {",
+									"        pm.expect(jsonData.data.status).to.equal(\"IN_PROGRESS\");",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/student-assessments/{{examId}}/start",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "student-assessments", "{{examId}}", "start"]
+						}
+					}
+				},
+				{
+					"name": "Submit Assessment",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"assessmentId\": \"{{examId}}\",\n    \"score\": 85.5,\n    \"durationInMinute\": 120.0\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/student-assessments/submit",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "student-assessments", "submit"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Assessments",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/student-assessments/my-assessments",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "student-assessments", "my-assessments"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Assessment by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/student-assessments/{{examId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "student-assessments", "{{examId}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Grade Assessment",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"studentId\": \"{{studentId}}\",\n    \"assessmentId\": \"{{examId}}\",\n    \"score\": 90.0,\n    \"gradingStatus\": \"graded\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v4/student-assessments/grade",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v4", "student-assessments", "grade"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "Health Inform",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/inform",
+							"host": ["{{baseUrl}}"],
+							"path": ["inform"]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		}
+	]
+}
+

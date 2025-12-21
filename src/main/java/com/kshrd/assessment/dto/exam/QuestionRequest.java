@@ -11,6 +11,8 @@ public record QuestionRequest(
         String image,
         
         @NotNull(message = "Question content cannot be null")
-        Map<String, Object> questionContent
+        Map<String, Object> questionContent,
+        
+        Double points
 ) {
 }

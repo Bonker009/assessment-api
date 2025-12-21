@@ -3,6 +3,8 @@ package com.kshrd.assessment.controller;
 import com.kshrd.assessment.dto.auth.LoginRequest;
 import com.kshrd.assessment.dto.auth.LoginResponse;
 import com.kshrd.assessment.dto.auth.UserRequest;
+import com.kshrd.assessment.dto.response.ApiResponse;
+import com.kshrd.assessment.dto.response.ResponseUtil;
 import com.kshrd.assessment.service.IKeycloakService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
@@ -29,16 +31,16 @@ public class UserController {
     @PostMapping("/register")
     @SecurityRequirements(value = {})
     @Operation(summary = "Register a new user", description = "Creates a new user account in Keycloak. This endpoint does not require authentication.")
-    public ResponseEntity<String> createUser(@RequestBody @Valid UserRequest userRequest) {
+    public ResponseEntity<ApiResponse<String>> createUser(@RequestBody @Valid UserRequest userRequest) {
         String result = keycloakService.createUser(userRequest);
-        return ResponseEntity.ok(result);
+        return ResponseUtil.created(result, "User registered successfully");
     }
 
     @PostMapping("/login")
     @SecurityRequirements(value = {})
     @Operation(summary = "User login", description = "Authenticates a user and returns JWT access token and refresh token. This endpoint does not require authentication.")
-    public ResponseEntity<LoginResponse> login(@RequestBody @Valid LoginRequest loginRequest) {
+    public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody @Valid LoginRequest loginRequest) {
         LoginResponse loginResponse = keycloakService.login(loginRequest);
-        return ResponseEntity.ok(loginResponse);
+        return ResponseUtil.ok(loginResponse, "Login successful");
     }
 }

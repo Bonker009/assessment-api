@@ -10,6 +10,7 @@ import com.kshrd.assessment.entity.Section;
 
 public interface IExamMapper {
     ExamResponse toResponse(Assessment entity);
+    ExamResponse toResponseWithoutSections(Assessment entity, Long totalSections, Long totalQuestions);
     ExamScheduleResponse toScheduleResponse(Assessment entity);
     SectionResponse toSectionResponse(Section entity);
     QuestionResponse toQuestionResponse(Question entity);

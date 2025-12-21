@@ -1,19 +1,18 @@
 package com.kshrd.assessment.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kshrd.assessment.dto.response.ApiResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
-import org.springframework.security.web.AuthenticationEntryPoint;
-import org.springframework.http.HttpStatus;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.kshrd.assessment.dto.error.ErrorResponse;
-import java.time.LocalDateTime;
 
 @Configuration
 @EnableWebSecurity
@@ -21,9 +20,11 @@ import java.time.LocalDateTime;
 public class SecurityConfig {
 
     private final JwtConverter jwtConverter;
+    private final ObjectMapper objectMapper;
 
-    public SecurityConfig(JwtConverter jwtConverter) {
+    public SecurityConfig(JwtConverter jwtConverter, ObjectMapper objectMapper) {
         this.jwtConverter = jwtConverter;
+        this.objectMapper = objectMapper;
     }
 
     @Bean
@@ -46,16 +47,14 @@ public class SecurityConfig {
             response.setStatus(HttpStatus.UNAUTHORIZED.value());
             response.setContentType("application/json");
             
-            ErrorResponse errorResponse = new ErrorResponse(
-                    HttpStatus.UNAUTHORIZED.name(),
+            ApiResponse<Object> apiResponse = ApiResponse.error(
                     "Unauthorized: " + authException.getMessage(),
-                    request.getRequestURI(),
-                    LocalDateTime.now()
+                    HttpStatus.UNAUTHORIZED.value(),
+                    "UNAUTHORIZED",
+                    request.getRequestURI()
             );
-            errorResponse.setErrorCode("UNAUTHORIZED");
             
-            ObjectMapper mapper = new ObjectMapper();
-            response.getWriter().write(mapper.writeValueAsString(errorResponse));
+            response.getWriter().write(objectMapper.writeValueAsString(apiResponse));
         };
     }
 
@@ -65,16 +64,14 @@ public class SecurityConfig {
             response.setStatus(HttpStatus.FORBIDDEN.value());
             response.setContentType("application/json");
             
-            ErrorResponse errorResponse = new ErrorResponse(
-                    HttpStatus.FORBIDDEN.name(),
+            ApiResponse<Object> apiResponse = ApiResponse.error(
                     "Access Denied: " + accessDeniedException.getMessage(),
-                    request.getRequestURI(),
-                    LocalDateTime.now()
+                    HttpStatus.FORBIDDEN.value(),
+                    "ACCESS_DENIED",
+                    request.getRequestURI()
             );
-            errorResponse.setErrorCode("ACCESS_DENIED");
             
-            ObjectMapper mapper = new ObjectMapper();
-            response.getWriter().write(mapper.writeValueAsString(errorResponse));
+            response.getWriter().write(objectMapper.writeValueAsString(apiResponse));
         };
     }
 

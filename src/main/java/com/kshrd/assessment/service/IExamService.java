@@ -16,7 +16,9 @@ import java.util.UUID;
 public interface IExamService {
     ExamResponse createExam(ExamRequest request);
     Optional<ExamResponse> getExamById(UUID examId);
+    List<ExamResponse>  getMyExams();
     List<ExamResponse> getAllExams();
+    List<ExamResponse> getActiveExams();
     Optional<ExamScheduleResponse> getExamSchedule(UUID examId);
     ExamResponse updateExam(UUID examId, ExamRequest request);
     ExamScheduleResponse updateSchedule(UUID examId, ExamScheduleRequest request);

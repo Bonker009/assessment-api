@@ -1,5 +1,7 @@
 package com.kshrd.assessment.controller;
 
+import com.kshrd.assessment.dto.response.ApiResponse;
+import com.kshrd.assessment.dto.response.ResponseUtil;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,7 +13,8 @@ public class HealthController {
 
     @GetMapping("/inform")
     @PostMapping("/inform")
-    public ResponseEntity<Map<String, String>> healthCheck() {
-        return ResponseEntity.ok(Map.of("status", "UP", "service", "assessment-management"));
+    public ResponseEntity<ApiResponse<Map<String, String>>> healthCheck() {
+        Map<String, String> healthStatus = Map.of("status", "UP", "service", "assessment-management");
+        return ResponseUtil.ok(healthStatus, "Service is healthy");
     }
 }

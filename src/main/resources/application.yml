@@ -1,20 +1,37 @@
 spring:
   application:
     name: assessment-management
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: Asia/Phnom_Penh
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-url: http://localhost:9090/realms/user-management
           jwk-set-uri: http://localhost:9090/realms/user-management/protocol/openid-connect/certs
+          issuer-uri: http://localhost:9090/realms/user-management
   datasource:
     url: jdbc:postgresql://localhost:5433/exam_db
     username: kshrd
     password: 1234
     driver-class-name: org.postgresql.Driver
+  task:
+    scheduling:
+      pool:
+        size: 5
+      thread-name-prefix: exam-scheduler-
 logging:
   level:
-    com.kshrd.assessment: debug
+    com.kshrd.assessment: info
+    com.kshrd.assessment.service.ExamSchedulerService: debug
 jwt:
   auth:
     converter:

@@ -15,13 +15,22 @@ import com.kshrd.assessment.mapper.IExamMapper;
 import com.kshrd.assessment.repository.AssessmentRepository;
 import com.kshrd.assessment.repository.QuestionRepository;
 import com.kshrd.assessment.repository.SectionRepository;
+import com.kshrd.assessment.service.ExamValidationService;
 import com.kshrd.assessment.service.IExamService;
+import com.kshrd.assessment.utils.SecurityUtils;
+import jakarta.ws.rs.NotFoundException;
 import lombok.AllArgsConstructor;
+import lombok.extern.java.Log;
+import org.jspecify.annotations.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -29,25 +38,18 @@ import java.util.stream.Collectors;
 @Service
 @AllArgsConstructor
 public class ExamServiceImpl implements IExamService {
+    private static final Logger log = LoggerFactory.getLogger(ExamServiceImpl.class);
 
     private final AssessmentRepository assessmentRepository;
     private final SectionRepository sectionRepository;
     private final QuestionRepository questionRepository;
     private final IExamMapper examMapper;
+    private final ExamValidationService examValidationService;
 
     @Transactional
     public ExamResponse createExam(ExamRequest request) {
-        Assessment assessment = new Assessment();
-        assessment.setName(request.name());
-        assessment.setIsQuiz(request.isQuiz());
-        assessment.setSubjectId(request.subjectId());
-        assessment.setAssessmentDate(request.assessmentDate());
-        assessment.setStartTime(request.startTime());
-        assessment.setEndTime(request.endTime());
-        assessment.setIsPublished(false);
-        
+        Assessment assessment = getAssessment(request);
         Assessment saved = assessmentRepository.save(assessment);
-        
         if (request.sections() != null && !request.sections().isEmpty()) {
             final Assessment assessmentForLambda = saved;
             List<Section> sections = request.sections().stream()
@@ -55,7 +57,7 @@ public class ExamServiceImpl implements IExamService {
                         Section section = new Section();
                         section.setSectionName(sectionRequest.sectionName());
                         section.setAssessment(assessmentForLambda);
-                        
+
                         if (sectionRequest.questions() != null && !sectionRequest.questions().isEmpty()) {
                             List<Question> questions = sectionRequest.questions().stream()
                                     .map(questionRequest -> {
@@ -63,34 +65,143 @@ public class ExamServiceImpl implements IExamService {
                                         question.setQuestionType(questionRequest.questionType());
                                         question.setImage(questionRequest.image());
                                         question.setQuestionContent(questionRequest.questionContent());
+                                        question.setPoints(questionRequest.points());
                                         question.setSection(section);
                                         return question;
                                     })
                                     .collect(Collectors.toList());
                             section.setQuestions(questions);
                         }
-                        
                         return section;
                     })
                     .collect(Collectors.toList());
-            
             saved.setSections(sections);
             saved = assessmentRepository.save(saved);
         }
-        
+        saved = assessmentRepository.findByIdWithSections(saved.getAssessment_id())
+                .orElse(saved);
+        if (saved != null) {
+            initializeQuestions(saved);
+        }
         return examMapper.toResponse(saved);
     }
 
-    public Optional<ExamResponse> getExamById(UUID examId) {
-        return assessmentRepository.findById(examId)
-                .map(examMapper::toResponse);
+    private static @NonNull Assessment getAssessment(ExamRequest request) {
+        Assessment assessment = new Assessment();
+        assessment.setName(request.name());
+        assessment.setIsQuiz(request.isQuiz());
+        assessment.setSubjectId(request.subjectId());
+        if (request.schedule() != null) {
+            assessment.setAssessmentDate(request.schedule().assessmentDate());
+            assessment.setStartTime(request.schedule().startTime());
+            assessment.setEndTime(request.schedule().endTime());
+            assessment.setIsPublished(request.schedule().isPublished() != null ? request.schedule().isPublished() : false);
+        } else {
+            assessment.setIsPublished(false);
+        }
+        return assessment;
     }
 
-    public List<ExamResponse> getAllExams() {
-        return assessmentRepository.findAll()
-                .stream()
-                .map(examMapper::toResponse)
+    @Transactional(readOnly = true)
+    public Optional<ExamResponse> getExamById(UUID examId) {
+        return assessmentRepository.findByIdWithSections(examId)
+                .map(assessment -> {
+                    if (assessment.getSections() != null && !assessment.getSections().isEmpty()) {
+                        List<Section> sectionsWithQuestions = sectionRepository.findByAssessmentIdWithQuestions(examId);
+                        Map<UUID, Section> sectionMap = sectionsWithQuestions.stream()
+                                .collect(Collectors.toMap(Section::getSection_id, s -> s));
+                        
+                        assessment.getSections().forEach(section -> {
+                            Section sectionWithQuestions = sectionMap.get(section.getSection_id());
+                            if (sectionWithQuestions != null && sectionWithQuestions.getQuestions() != null) {
+                                section.setQuestions(sectionWithQuestions.getQuestions());
+                            }
+                        });
+                    }
+                    return examMapper.toResponse(assessment);
+                });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ExamResponse>getMyExams() {
+        UUID currentUser =  SecurityUtils.getCurrentUserId();
+        List<Assessment> assessments = assessmentRepository.findByCreatedBy(currentUser);
+        return assessments.stream()
+                .map(assessment -> {
+                    Long totalSections = sectionRepository.countByAssessment_Assessment_id(assessment.getAssessment_id());
+                    Long totalQuestions = questionRepository.countByAssessmentId(assessment.getAssessment_id());
+                    return examMapper.toResponseWithoutSections(assessment, totalSections, totalQuestions);
+                })
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ExamResponse> getAllExams() {
+        List<Assessment> assessments = assessmentRepository.findAll();
+        return assessments.stream()
+                .map(assessment -> {
+                    Long totalSections = sectionRepository.countByAssessment_Assessment_id(assessment.getAssessment_id());
+                    Long totalQuestions = questionRepository.countByAssessmentId(assessment.getAssessment_id());
+                    return examMapper.toResponseWithoutSections(assessment, totalSections, totalQuestions);
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ExamResponse> getActiveExams() {
+        try {
+            List<Assessment> activeAssessments = assessmentRepository.findActiveExamsNative();
+            return activeAssessments.stream()
+                    .map(assessment -> {
+                        Long totalSections = sectionRepository.countByAssessment_Assessment_id(assessment.getAssessment_id());
+                        Long totalQuestions = questionRepository.countByAssessmentId(assessment.getAssessment_id());
+                        return examMapper.toResponseWithoutSections(assessment, totalSections, totalQuestions);
+                    })
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("Native query failed, falling back to Java filtering: {}", e.getMessage());
+            List<Assessment> publishedAssessments = assessmentRepository.findPublishedExamsWithSchedule();
+            return publishedAssessments.stream()
+                    .filter(examValidationService::isExamActive)
+                    .map(assessment -> {
+                        Long totalSections = sectionRepository.countByAssessment_Assessment_id(assessment.getAssessment_id());
+                        Long totalQuestions = questionRepository.countByAssessmentId(assessment.getAssessment_id());
+                        return examMapper.toResponseWithoutSections(assessment, totalSections, totalQuestions);
+                    })
+                    .collect(Collectors.toList());
+        }
+    }
+    
+    private void initializeQuestions(Assessment assessment) {
+        if (assessment.getSections() != null) {
+            for (Section section : assessment.getSections()) {
+                Hibernate.initialize(section.getQuestions());
+            }
+        }
+    }
+    
+    private void initializeQuestionsForAssessments(List<Assessment> assessments) {
+        if (assessments == null || assessments.isEmpty()) {
+            return;
+        }
+        
+        assessments.forEach(assessment -> {
+            if (assessment.getSections() != null && !assessment.getSections().isEmpty()) {
+                UUID assessmentId = assessment.getAssessment_id();
+                List<Section> sectionsWithQuestions = sectionRepository.findByAssessmentIdWithQuestions(assessmentId);
+                
+                Map<UUID, Section> sectionMap = sectionsWithQuestions.stream()
+                        .collect(Collectors.toMap(Section::getSection_id, s -> s));
+                
+                assessment.getSections().forEach(section -> {
+                    Section sectionWithQuestions = sectionMap.get(section.getSection_id());
+                    if (sectionWithQuestions != null && sectionWithQuestions.getQuestions() != null) {
+                        section.setQuestions(sectionWithQuestions.getQuestions());
+                    }
+                });
+            }
+        });
     }
 
     public Optional<ExamScheduleResponse> getExamSchedule(UUID examId) {
@@ -106,11 +217,22 @@ public class ExamServiceImpl implements IExamService {
         assessment.setName(request.name());
         assessment.setIsQuiz(request.isQuiz());
         assessment.setSubjectId(request.subjectId());
-        assessment.setAssessmentDate(request.assessmentDate());
-        assessment.setStartTime(request.startTime());
-        assessment.setEndTime(request.endTime());
+
+        if (request.schedule() != null) {
+            assessment.setAssessmentDate(request.schedule().assessmentDate());
+            assessment.setStartTime(request.schedule().startTime());
+            assessment.setEndTime(request.schedule().endTime());
+            if (request.schedule().isPublished() != null) {
+                assessment.setIsPublished(request.schedule().isPublished());
+            }
+        }
 
         Assessment saved = assessmentRepository.save(assessment);
+        saved = assessmentRepository.findByIdWithSections(saved.getAssessment_id())
+                .orElse(saved);
+        if (saved != null) {
+            initializeQuestions(saved);
+        }
         return examMapper.toResponse(saved);
     }
 
@@ -152,6 +274,11 @@ public class ExamServiceImpl implements IExamService {
 
         assessment.setIsPublished(true);
         Assessment saved = assessmentRepository.save(assessment);
+        saved = assessmentRepository.findByIdWithSections(saved.getAssessment_id())
+                .orElse(saved);
+        if (saved != null) {
+            initializeQuestions(saved);
+        }
         return examMapper.toResponse(saved);
     }
 
@@ -162,6 +289,11 @@ public class ExamServiceImpl implements IExamService {
 
         assessment.setIsPublished(false);
         Assessment saved = assessmentRepository.save(assessment);
+        saved = assessmentRepository.findByIdWithSections(saved.getAssessment_id())
+                .orElse(saved);
+        if (saved != null) {
+            initializeQuestions(saved);
+        }
         return examMapper.toResponse(saved);
     }
 
@@ -192,6 +324,11 @@ public class ExamServiceImpl implements IExamService {
         }
 
         Assessment saved = assessmentRepository.save(clonedExam);
+        saved = assessmentRepository.findByIdWithSections(saved.getAssessment_id())
+                .orElse(saved);
+        if (saved != null) {
+            initializeQuestions(saved);
+        }
         return examMapper.toResponse(saved);
     }
 
@@ -207,7 +344,7 @@ public class ExamServiceImpl implements IExamService {
     public void updateSection(UUID sectionId, SectionUpdateRequest request) {
         Section section = sectionRepository.findById(sectionId)
                 .orElseThrow(() -> new IllegalStateException("Section not found"));
-        
+
         section.setSectionName(request.sectionName());
         sectionRepository.save(section);
     }
@@ -224,10 +361,11 @@ public class ExamServiceImpl implements IExamService {
     public void updateQuestion(UUID questionId, QuestionUpdateRequest request) {
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new IllegalStateException("Question not found"));
-        
+
         question.setQuestionType(request.questionType());
         question.setImage(request.image());
         question.setQuestionContent(request.questionContent());
+        question.setPoints(request.points());
         questionRepository.save(question);
     }
 

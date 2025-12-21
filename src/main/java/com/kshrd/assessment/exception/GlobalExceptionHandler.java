@@ -1,81 +1,108 @@
 package com.kshrd.assessment.exception;
 
-import com.kshrd.assessment.dto.error.ErrorResponse;
+import com.kshrd.assessment.dto.response.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.context.request.WebRequest;
-
-import java.time.LocalDateTime;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
+    
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMethodArgumentNotValidException(
+            MethodArgumentNotValidException ex, WebRequest request) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .findFirst()
+                .orElse("Validation failed");
+        
+        String path = request.getDescription(false).replace("uri=", "");
+        
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(message, HttpStatus.BAD_REQUEST.value(), "VALIDATION_FAILED", path));
+    }
+    
     @ExceptionHandler(ConstraintViolationException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<ErrorResponse> handleValidationException(ConstraintViolationException ex, WebRequest request) {
-
+    public ResponseEntity<ApiResponse<Object>> handleConstraintViolationException(
+            ConstraintViolationException ex, WebRequest request) {
         String message = ex.getMessage();
-        String path = request.getDescription(false).substring(4); // Remove "uri=" prefix
+        String path = request.getDescription(false).replace("uri=", "");
+        
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(message, HttpStatus.BAD_REQUEST.value(), "VALIDATION_FAILED", path));
+    }
 
-        ErrorResponse errorResponse = new ErrorResponse(
-                HttpStatus.BAD_REQUEST.name(),
-                message,
-                path,
-                LocalDateTime.now()
-        );
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Object>> handleIllegalArgumentException(
+            IllegalArgumentException ex, WebRequest request) {
+        String path = request.getDescription(false).replace("uri=", "");
+        
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ex.getMessage(), HttpStatus.BAD_REQUEST.value(), "INVALID_ARGUMENT", path));
+    }
 
-        errorResponse.setErrorCode("VALIDATION_FAILED");
-        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Object>> handleIllegalStateException(
+            IllegalStateException ex, WebRequest request) {
+        String path = request.getDescription(false).replace("uri=", "");
+        
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ex.getMessage(), HttpStatus.BAD_REQUEST.value(), "ILLEGAL_STATE", path));
     }
 
     @ExceptionHandler({AccessDeniedException.class, AuthorizationDeniedException.class})
-    @ResponseStatus(HttpStatus.FORBIDDEN)
-    public ResponseEntity<ErrorResponse> handleAccessDeniedException(Exception ex, WebRequest request) {
-        String path = request.getDescription(false).substring(4);
+    public ResponseEntity<ApiResponse<Object>> handleAccessDeniedException(
+            Exception ex, WebRequest request) {
+        String path = request.getDescription(false).replace("uri=", "");
         
-        ErrorResponse errorResponse = new ErrorResponse(
-                HttpStatus.FORBIDDEN.name(),
-                "Access Denied: " + ex.getMessage(),
-                path,
-                LocalDateTime.now()
-        );
-        errorResponse.setErrorCode("ACCESS_DENIED");
-        
-        return new ResponseEntity<>(errorResponse, HttpStatus.FORBIDDEN);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("Access Denied: " + ex.getMessage(), 
+                        HttpStatus.FORBIDDEN.value(), "ACCESS_DENIED", path));
     }
 
     @ExceptionHandler(AuthenticationException.class)
-    @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    public ResponseEntity<ErrorResponse> handleAuthenticationException(AuthenticationException ex, WebRequest request) {
-        String path = request.getDescription(false).substring(4);
+    public ResponseEntity<ApiResponse<Object>> handleAuthenticationException(
+            AuthenticationException ex, WebRequest request) {
+        String path = request.getDescription(false).replace("uri=", "");
         
-        ErrorResponse errorResponse = new ErrorResponse(
-                HttpStatus.UNAUTHORIZED.name(),
-                "Unauthorized: " + ex.getMessage(),
-                path,
-                LocalDateTime.now()
-        );
-        errorResponse.setErrorCode("UNAUTHORIZED");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error("Unauthorized: " + ex.getMessage(), 
+                        HttpStatus.UNAUTHORIZED.value(), "UNAUTHORIZED", path));
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ApiResponse<Object>> handleRuntimeException(
+            RuntimeException ex, WebRequest request) {
+        String path = request.getDescription(false).replace("uri=", "");
         
-        return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
+        if (ex.getMessage() != null && (
+                ex.getMessage().contains("not found") ||
+                ex.getMessage().contains("cannot") ||
+                ex.getMessage().contains("already exists") ||
+                ex.getMessage().contains("invalid"))) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(ex.getMessage(), HttpStatus.BAD_REQUEST.value(), "BUSINESS_LOGIC_ERROR", path));
+        }
+        
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error(ex.getMessage() != null ? ex.getMessage() : "An unexpected error occurred",
+                        HttpStatus.INTERNAL_SERVER_ERROR.value(), "RUNTIME_ERROR", path));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex, WebRequest request) {
-        ErrorResponse errorResponse = new ErrorResponse(
-                HttpStatus.INTERNAL_SERVER_ERROR.name(),
-                ex.getMessage(),
-                request.getDescription(false).substring(4),
-                LocalDateTime.now()
-        );
-        errorResponse.setErrorCode("INTERNAL_SERVER_ERROR");
-
-        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<ApiResponse<Object>> handleGenericException(
+            Exception ex, WebRequest request) {
+        String path = request.getDescription(false).replace("uri=", "");
+        
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error(ex.getMessage() != null ? ex.getMessage() : "An unexpected error occurred",
+                        HttpStatus.INTERNAL_SERVER_ERROR.value(), "INTERNAL_SERVER_ERROR", path));
     }
 }

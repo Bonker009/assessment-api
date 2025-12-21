@@ -1,5 +1,6 @@
 package com.kshrd.assessment.service;
 
+import com.kshrd.assessment.dto.answer.SubmitAnswersRequest;
 import com.kshrd.assessment.dto.studentassessment.GradeAssessmentRequest;
 import com.kshrd.assessment.dto.studentassessment.StudentAssessmentRequest;
 import com.kshrd.assessment.dto.studentassessment.StudentAssessmentResponse;
@@ -14,6 +15,7 @@ public interface IStudentAssessmentService {
     StudentAssessmentResponse assignAssessment(StudentAssessmentRequest request);
     StudentAssessmentResponse startAssessment(UUID assessmentId);
     StudentAssessmentResponse submitAssessment(SubmitAssessmentRequest request);
+    StudentAssessmentResponse submitAssessmentWithAnswers(SubmitAnswersRequest request);
     List<StudentAssessmentResponse> getMyAssessments();
     Optional<StudentAssessmentResponse> getMyAssessment(UUID assessmentId);
     StudentAssessmentResponse gradeAssessment(GradeAssessmentRequest request);

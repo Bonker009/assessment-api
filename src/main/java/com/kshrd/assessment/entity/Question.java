@@ -28,6 +28,8 @@ public class Question {
     @JdbcTypeCode(SqlTypes.JSON)
     private Map<String, Object> questionContent;
 
+    private Double points;
+
     @ManyToOne
     @JoinColumn(name = "section_id", nullable = false)
     Section section;

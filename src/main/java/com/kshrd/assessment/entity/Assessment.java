@@ -7,6 +7,7 @@ import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,6 +17,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "assessments")
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 public class Assessment {
@@ -43,11 +45,18 @@ public class Assessment {
     private Boolean isPublished = false;
     
     @CreatedBy
+    @Column(name = "created_by")
     private UUID createdBy;
+    
     @LastModifiedBy
+    @Column(name = "updated_by")
     private UUID updatedBy;
+    
     @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+    
     @LastModifiedDate
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }

@@ -2,6 +2,8 @@ package com.kshrd.assessment.controller;
 
 import com.kshrd.assessment.dto.exam.QuestionResponse;
 import com.kshrd.assessment.dto.exam.QuestionUpdateRequest;
+import com.kshrd.assessment.dto.response.ApiResponse;
+import com.kshrd.assessment.dto.response.ResponseUtil;
 import com.kshrd.assessment.service.IExamService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -27,27 +29,27 @@ public class QuestionController {
     @GetMapping("/{questionId}")
     @PreAuthorize("hasRole('student') or hasRole('teacher') or hasRole('admin')")
     @Operation(summary = "Get question by ID", description = "Retrieves a specific question by its unique identifier including question type, content, image, and associated section ID")
-    public ResponseEntity<QuestionResponse> getQuestion(@PathVariable UUID questionId) {
+    public ResponseEntity<ApiResponse<QuestionResponse>> getQuestion(@PathVariable UUID questionId) {
         Optional<QuestionResponse> response = examService.getQuestionById(questionId);
-        return response.map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        return response.map(ResponseUtil::ok)
+                .orElse(ResponseUtil.notFound("Question not found"));
     }
 
     @PutMapping("/{questionId}")
     @PreAuthorize("hasRole('teacher') or hasRole('admin')")
     @Operation(summary = "Update question", description = "Updates the details of an existing question including type, image, and question content")
-    public ResponseEntity<Void> updateQuestion(
+    public ResponseEntity<ApiResponse<Void>> updateQuestion(
             @PathVariable UUID questionId,
             @RequestBody @Valid QuestionUpdateRequest request) {
         examService.updateQuestion(questionId, request);
-        return ResponseEntity.ok().build();
+        return ResponseUtil.ok(null, "Question updated successfully");
     }
 
     @DeleteMapping("/{questionId}")
     @PreAuthorize("hasRole('teacher') or hasRole('admin')")
     @Operation(summary = "Delete question", description = "Deletes a question from a section")
-    public ResponseEntity<Void> deleteQuestion(@PathVariable UUID questionId) {
+    public ResponseEntity<ApiResponse<Void>> deleteQuestion(@PathVariable UUID questionId) {
         examService.deleteQuestion(questionId);
-        return ResponseEntity.noContent().build();
+        return ResponseUtil.noContent("Question deleted successfully");
     }
 }
