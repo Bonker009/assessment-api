@@ -5,13 +5,13 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
         jdbc:
-          time_zone: Asia/Phnom_Penh
+          time_zone: UTC
   security:
     oauth2:
       resourceserver:

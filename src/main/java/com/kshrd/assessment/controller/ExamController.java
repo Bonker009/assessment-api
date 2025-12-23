@@ -5,6 +5,8 @@ import com.kshrd.assessment.dto.exam.ExamResponse;
 import com.kshrd.assessment.dto.exam.ExamScheduleRequest;
 import com.kshrd.assessment.dto.exam.ExamScheduleResponse;
 import com.kshrd.assessment.dto.response.ApiResponse;
+import com.kshrd.assessment.dto.response.PageRequest;
+import com.kshrd.assessment.dto.response.PageResponse;
 import com.kshrd.assessment.dto.response.ResponseUtil;
 import com.kshrd.assessment.service.IExamService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -48,26 +50,45 @@ public class ExamController {
 
     @GetMapping("/my-exams")
     @PreAuthorize("hasRole('teacher') or hasRole('admin')")
-    @Operation(summary = "Get all exams by its owner", description = "Retrieves all exams/assessments by its owner")
-    public ResponseEntity<ApiResponse<List<ExamResponse>>> getMyExams() {
-         List<ExamResponse>  response = examService.getMyExams();
-        return  ResponseUtil.ok(response,"Exams retrieved successfully");
+
+    @Operation(summary = "Get all exams by its owner", description = "Retrieves all exams/assessments by its owner with pagination and search support")
+    public ResponseEntity<ApiResponse<PageResponse<ExamResponse>>> getMyExams(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(defaultValue = "ASC") String sortDirection,
+            @RequestParam(required = false) String search) {
+        PageRequest pageRequest = new PageRequest(page, size, sortBy, sortDirection, search);
+        PageResponse<ExamResponse> response = examService.getMyExams(pageRequest);
+        return ResponseUtil.ok(response, "Exams retrieved successfully");
     }
 
     @GetMapping
     @PreAuthorize("hasRole('student') or hasRole('teacher') or hasRole('admin')")
-    @Operation(summary = "Get all exams", description = "Retrieves a list of all exams/assessments in the system")
-    public ResponseEntity<ApiResponse<List<ExamResponse>>> getAllExams() {
-        List<ExamResponse> responses = examService.getAllExams();
-        return ResponseUtil.ok(responses, "Exams retrieved successfully");
+    @Operation(summary = "Get all exams", description = "Retrieves a list of all exams/assessments in the system with pagination and search support")
+    public ResponseEntity<ApiResponse<PageResponse<ExamResponse>>> getAllExams(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(defaultValue = "ASC") String sortDirection,
+            @RequestParam(required = false) String search) {
+        PageRequest pageRequest = new PageRequest(page, size, sortBy, sortDirection, search);
+        PageResponse<ExamResponse> response = examService.getAllExams(pageRequest);
+        return ResponseUtil.ok(response, "Exams retrieved successfully");
     }
 
     @GetMapping("/active")
     @PreAuthorize("hasRole('student') or hasRole('teacher') or hasRole('admin')")
-    @Operation(summary = "Get active exams", description = "Retrieves a list of currently active exams. An exam is active if it is published and the current time is within the scheduled start and end time on the assessment date.")
-    public ResponseEntity<ApiResponse<List<ExamResponse>>> getActiveExams() {
-        List<ExamResponse> responses = examService.getActiveExams();
-        return ResponseUtil.ok(responses, "Active exams retrieved successfully");
+    @Operation(summary = "Get active exams", description = "Retrieves a list of currently active exams with pagination and search support. An exam is active if the current time is within the scheduled start and end time on the assessment date.")
+    public ResponseEntity<ApiResponse<PageResponse<ExamResponse>>> getActiveExams(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(defaultValue = "ASC") String sortDirection,
+            @RequestParam(required = false) String search) {
+        PageRequest pageRequest = new PageRequest(page, size, sortBy, sortDirection, search);
+        PageResponse<ExamResponse> response = examService.getActiveExams(pageRequest);
+        return ResponseUtil.ok(response, "Active exams retrieved successfully");
     }
 
     @GetMapping("/{examId}/schedule")
@@ -99,25 +120,9 @@ public class ExamController {
         return ResponseUtil.ok(response, "Exam schedule updated successfully");
     }
 
-    @PostMapping("/{examId}/publish")
-    @PreAuthorize("hasRole('teacher') or hasRole('admin')")
-    @Operation(summary = "Publish exam", description = "Publishes an exam making it available to students. Can only be published before the exam start date")
-    public ResponseEntity<ApiResponse<ExamResponse>> publishExam(@PathVariable UUID examId) {
-        ExamResponse response = examService.publishExam(examId);
-        return ResponseUtil.ok(response, "Exam published successfully");
-    }
-
-    @PostMapping("/{examId}/unpublish")
-    @PreAuthorize("hasRole('teacher') or hasRole('admin')")
-    @Operation(summary = "Unpublish exam", description = "Unpublishes an exam, making it unavailable to students")
-    public ResponseEntity<ApiResponse<ExamResponse>> unpublishExam(@PathVariable UUID examId) {
-        ExamResponse response = examService.unpublishExam(examId);
-        return ResponseUtil.ok(response, "Exam unpublished successfully");
-    }
-
     @PostMapping("/{examId}/clone")
     @PreAuthorize("hasRole('teacher') or hasRole('admin')")
-    @Operation(summary = "Clone exam", description = "Creates a copy of an existing exam including all its sections and questions. The cloned exam will have '(Copy)' appended to its name and will be unpublished")
+    @Operation(summary = "Clone exam", description = "Creates a copy of an existing exam including all its sections and questions. The cloned exam will have '(Copy)' appended to its name")
     public ResponseEntity<ApiResponse<ExamResponse>> cloneExam(@PathVariable UUID examId) {
         ExamResponse response = examService.cloneExam(examId);
         return ResponseUtil.created(response, "Exam cloned successfully");
@@ -129,5 +134,13 @@ public class ExamController {
     public ResponseEntity<ApiResponse<Void>> deleteExam(@PathVariable UUID examId) {
         examService.deleteExam(examId);
         return ResponseUtil.noContent("Exam deleted successfully");
+    }
+
+    @GetMapping("/{examId}/student-view")
+    @PreAuthorize("hasRole('student')")
+    @Operation(summary = "Get active exam details for student", description = "Retrieves exam details with questions for an active exam assigned to the student. Returns questions only, no student answers.")
+    public ResponseEntity<ApiResponse<ExamResponse>> getActiveExamForStudent(@PathVariable UUID examId) {
+        ExamResponse response = examService.getActiveExamForStudent(examId);
+        return ResponseUtil.ok(response, "Active exam details retrieved successfully");
     }
 }

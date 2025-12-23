@@ -2,6 +2,8 @@ package com.kshrd.assessment.controller;
 
 import com.kshrd.assessment.dto.answer.SubmitAnswersRequest;
 import com.kshrd.assessment.dto.response.ApiResponse;
+import com.kshrd.assessment.dto.response.PageRequest;
+import com.kshrd.assessment.dto.response.PageResponse;
 import com.kshrd.assessment.dto.response.ResponseUtil;
 import com.kshrd.assessment.dto.studentassessment.GradeAssessmentRequest;
 import com.kshrd.assessment.dto.studentassessment.StudentAssessmentRequest;
@@ -68,10 +70,16 @@ public class StudentAssessmentController {
 
     @GetMapping("/my-assessments")
     @PreAuthorize("hasRole('student')")
-    @Operation(summary = "Get my assessments", description = "Retrieves all assessments assigned to the currently authenticated student")
-    public ResponseEntity<ApiResponse<List<StudentAssessmentResponse>>> getMyAssessments() {
-        List<StudentAssessmentResponse> responses = studentAssessmentService.getMyAssessments();
-        return ResponseUtil.ok(responses, "Assessments retrieved successfully");
+    @Operation(summary = "Get my assessments", description = "Retrieves all assessments assigned to the currently authenticated student with pagination support")
+    public ResponseEntity<ApiResponse<PageResponse<StudentAssessmentResponse>>> getMyAssessments(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(defaultValue = "ASC") String sortDirection,
+            @RequestParam(required = false) String search) {
+        PageRequest pageRequest = new PageRequest(page, size, sortBy, sortDirection, search);
+        PageResponse<StudentAssessmentResponse> response = studentAssessmentService.getMyAssessments(pageRequest);
+        return ResponseUtil.ok(response, "Assessments retrieved successfully");
     }
 
     @GetMapping("/{assessmentId}")

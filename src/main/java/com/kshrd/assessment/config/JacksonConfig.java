@@ -8,6 +8,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
+/**
+ * Jackson configuration for JSON serialization/deserialization.
+ * 
+ * Timezone Handling:
+ * - LocalDate and LocalTime are accepted from users as-is (ISO 8601 format)
+ * - No timezone conversion is applied to user input
+ * - Dates/times are stored as-is in the database (timezone-agnostic)
+ * - Business logic interprets dates/times in Cambodia timezone context
+ */
 @Configuration
 public class JacksonConfig {
 

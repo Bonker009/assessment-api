@@ -42,7 +42,8 @@ public class QuestionController {
             @PathVariable UUID questionId,
             @RequestBody @Valid QuestionUpdateRequest request) {
         examService.updateQuestion(questionId, request);
-        return ResponseUtil.ok(null, "Question updated successfully");
+        Void data = null;
+        return ResponseUtil.ok(data, "Question updated successfully");
     }
 
     @DeleteMapping("/{questionId}")

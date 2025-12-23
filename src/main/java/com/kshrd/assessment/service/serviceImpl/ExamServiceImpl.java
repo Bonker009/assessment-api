@@ -8,6 +8,8 @@ import com.kshrd.assessment.dto.exam.QuestionResponse;
 import com.kshrd.assessment.dto.exam.QuestionUpdateRequest;
 import com.kshrd.assessment.dto.exam.SectionResponse;
 import com.kshrd.assessment.dto.exam.SectionUpdateRequest;
+import com.kshrd.assessment.dto.response.PageRequest;
+import com.kshrd.assessment.dto.response.PageResponse;
 import com.kshrd.assessment.entity.Assessment;
 import com.kshrd.assessment.entity.Question;
 import com.kshrd.assessment.entity.Section;
@@ -15,6 +17,11 @@ import com.kshrd.assessment.mapper.IExamMapper;
 import com.kshrd.assessment.repository.AssessmentRepository;
 import com.kshrd.assessment.repository.QuestionRepository;
 import com.kshrd.assessment.repository.SectionRepository;
+import com.kshrd.assessment.repository.StudentAssessmentRepository;
+import com.kshrd.assessment.aop.annotation.LogError;
+import com.kshrd.assessment.aop.annotation.LogExecution;
+import com.kshrd.assessment.aop.annotation.LogPerformance;
+import com.kshrd.assessment.exception.ResourceNotFoundException;
 import com.kshrd.assessment.service.ExamValidationService;
 import com.kshrd.assessment.service.IExamService;
 import com.kshrd.assessment.utils.SecurityUtils;
@@ -29,6 +36,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,12 +45,17 @@ import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
+@LogExecution(logParameters = true, logReturnValue = false, description = "Exam Service")
+@LogPerformance(thresholdMillis = 2000, description = "Exam Service Performance")
+@LogError(logStackTrace = true, description = "Exam Service Error Handling")
 public class ExamServiceImpl implements IExamService {
     private static final Logger log = LoggerFactory.getLogger(ExamServiceImpl.class);
+    private static final ZoneId CAMBODIA_ZONE = ZoneId.of("Asia/Phnom_Penh");
 
     private final AssessmentRepository assessmentRepository;
     private final SectionRepository sectionRepository;
     private final QuestionRepository questionRepository;
+    private final StudentAssessmentRepository studentAssessmentRepository;
     private final IExamMapper examMapper;
     private final ExamValidationService examValidationService;
 
@@ -55,7 +68,7 @@ public class ExamServiceImpl implements IExamService {
             List<Section> sections = request.sections().stream()
                     .map(sectionRequest -> {
                         Section section = new Section();
-                        section.setSectionName(sectionRequest.sectionName());
+                        section.setSectionName(sectionRequest.sectionName().trim());
                         section.setAssessment(assessmentForLambda);
 
                         if (sectionRequest.questions() != null && !sectionRequest.questions().isEmpty()) {
@@ -88,38 +101,36 @@ public class ExamServiceImpl implements IExamService {
 
     private static @NonNull Assessment getAssessment(ExamRequest request) {
         Assessment assessment = new Assessment();
-        assessment.setName(request.name());
+        assessment.setName(request.name().trim());
         assessment.setIsQuiz(request.isQuiz());
         assessment.setSubjectId(request.subjectId());
         if (request.schedule() != null) {
             assessment.setAssessmentDate(request.schedule().assessmentDate());
             assessment.setStartTime(request.schedule().startTime());
             assessment.setEndTime(request.schedule().endTime());
-            assessment.setIsPublished(request.schedule().isPublished() != null ? request.schedule().isPublished() : false);
-        } else {
-            assessment.setIsPublished(false);
         }
         return assessment;
     }
 
     @Transactional(readOnly = true)
     public Optional<ExamResponse> getExamById(UUID examId) {
-        return assessmentRepository.findByIdWithSections(examId)
-                .map(assessment -> {
-                    if (assessment.getSections() != null && !assessment.getSections().isEmpty()) {
-                        List<Section> sectionsWithQuestions = sectionRepository.findByAssessmentIdWithQuestions(examId);
-                        Map<UUID, Section> sectionMap = sectionsWithQuestions.stream()
-                                .collect(Collectors.toMap(Section::getSection_id, s -> s));
-                        
-                        assessment.getSections().forEach(section -> {
-                            Section sectionWithQuestions = sectionMap.get(section.getSection_id());
-                            if (sectionWithQuestions != null && sectionWithQuestions.getQuestions() != null) {
-                                section.setQuestions(sectionWithQuestions.getQuestions());
-                            }
-                        });
-                    }
-                    return examMapper.toResponse(assessment);
-                });
+        Assessment assessment = assessmentRepository.findByIdWithSections(examId)
+                .orElseThrow(() -> new ResourceNotFoundException("Exam", examId.toString()));
+        
+        if (assessment.getSections() != null && !assessment.getSections().isEmpty()) {
+            List<Section> sectionsWithQuestions = sectionRepository.findByAssessmentIdWithQuestions(examId);
+            Map<UUID, Section> sectionMap = sectionsWithQuestions.stream()
+                    .collect(Collectors.toMap(Section::getSection_id, s -> s));
+            
+            assessment.getSections().forEach(section -> {
+                Section sectionWithQuestions = sectionMap.get(section.getSection_id());
+                if (sectionWithQuestions != null && sectionWithQuestions.getQuestions() != null) {
+                    section.setQuestions(sectionWithQuestions.getQuestions());
+                }
+            });
+        }
+        
+        return Optional.of(examMapper.toResponse(assessment));
     }
 
     @Override
@@ -136,6 +147,29 @@ public class ExamServiceImpl implements IExamService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ExamResponse> getMyExams(PageRequest pageRequest) {
+        UUID currentUser = SecurityUtils.getCurrentUserId();
+        var pageable = pageRequest.toPageable();
+        var page = pageRequest.getSearch() != null && !pageRequest.getSearch().trim().isEmpty()
+                ? assessmentRepository.findByCreatedByAndNameContainingIgnoreCase(currentUser, pageRequest.getSearch().trim(), pageable)
+                : assessmentRepository.findByCreatedBy(currentUser, pageable);
+        
+        if (page.getContent().isEmpty() && page.getTotalElements() == 0) {
+            throw new ResourceNotFoundException("No exams found for user", currentUser.toString());
+        }
+        
+        var content = page.getContent().stream()
+                .map(assessment -> {
+                    Long totalSections = sectionRepository.countByAssessment_Assessment_id(assessment.getAssessment_id());
+                    Long totalQuestions = questionRepository.countByAssessmentId(assessment.getAssessment_id());
+                    return examMapper.toResponseWithoutSections(assessment, totalSections, totalQuestions);
+                })
+                .collect(Collectors.toList());
+        return PageResponse.of(content, pageable, page.getTotalElements());
+    }
+
     @Transactional(readOnly = true)
     public List<ExamResponse> getAllExams() {
         List<Assessment> assessments = assessmentRepository.findAll();
@@ -148,29 +182,62 @@ public class ExamServiceImpl implements IExamService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ExamResponse> getAllExams(PageRequest pageRequest) {
+        var pageable = pageRequest.toPageable();
+        var page = pageRequest.getSearch() != null && !pageRequest.getSearch().trim().isEmpty()
+                ? assessmentRepository.findByNameContainingIgnoreCase(pageRequest.getSearch().trim(), pageable)
+                : assessmentRepository.findAll(pageable);
+        
+        if (page.getContent().isEmpty() && page.getTotalElements() == 0) {
+            throw new ResourceNotFoundException("No exams found");
+        }
+        
+        var content = page.getContent().stream()
+                .map(assessment -> {
+                    Long totalSections = sectionRepository.countByAssessment_Assessment_id(assessment.getAssessment_id());
+                    Long totalQuestions = questionRepository.countByAssessmentId(assessment.getAssessment_id());
+                    return examMapper.toResponseWithoutSections(assessment, totalSections, totalQuestions);
+                })
+                .collect(Collectors.toList());
+        return PageResponse.of(content, pageable, page.getTotalElements());
+    }
+
     @Transactional(readOnly = true)
     public List<ExamResponse> getActiveExams() {
-        try {
-            List<Assessment> activeAssessments = assessmentRepository.findActiveExamsNative();
-            return activeAssessments.stream()
-                    .map(assessment -> {
-                        Long totalSections = sectionRepository.countByAssessment_Assessment_id(assessment.getAssessment_id());
-                        Long totalQuestions = questionRepository.countByAssessmentId(assessment.getAssessment_id());
-                        return examMapper.toResponseWithoutSections(assessment, totalSections, totalQuestions);
-                    })
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.warn("Native query failed, falling back to Java filtering: {}", e.getMessage());
-            List<Assessment> publishedAssessments = assessmentRepository.findPublishedExamsWithSchedule();
-            return publishedAssessments.stream()
-                    .filter(examValidationService::isExamActive)
-                    .map(assessment -> {
-                        Long totalSections = sectionRepository.countByAssessment_Assessment_id(assessment.getAssessment_id());
-                        Long totalQuestions = questionRepository.countByAssessmentId(assessment.getAssessment_id());
-                        return examMapper.toResponseWithoutSections(assessment, totalSections, totalQuestions);
-                    })
-                    .collect(Collectors.toList());
+        List<Assessment> publishedAssessments = assessmentRepository.findPublishedExamsWithSchedule();
+        return publishedAssessments.stream()
+                .filter(examValidationService::isExamActive)
+                .map(assessment -> {
+                    Long totalSections = sectionRepository.countByAssessment_Assessment_id(assessment.getAssessment_id());
+                    Long totalQuestions = questionRepository.countByAssessmentId(assessment.getAssessment_id());
+                    return examMapper.toResponseWithoutSections(assessment, totalSections, totalQuestions);
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ExamResponse> getActiveExams(PageRequest pageRequest) {
+        var pageable = pageRequest.toPageable();
+        var page = pageRequest.getSearch() != null && !pageRequest.getSearch().trim().isEmpty()
+                ? assessmentRepository.findPublishedExamsWithScheduleAndNameContaining(pageRequest.getSearch().trim(), pageable)
+                : assessmentRepository.findPublishedExamsWithSchedule(pageable);
+        var filteredContent = page.getContent().stream()
+                .filter(examValidationService::isExamActive)
+                .map(assessment -> {
+                    Long totalSections = sectionRepository.countByAssessment_Assessment_id(assessment.getAssessment_id());
+                    Long totalQuestions = questionRepository.countByAssessmentId(assessment.getAssessment_id());
+                    return examMapper.toResponseWithoutSections(assessment, totalSections, totalQuestions);
+                })
+                .collect(Collectors.toList());
+        
+        if (filteredContent.isEmpty() && page.getTotalElements() == 0) {
+            throw new ResourceNotFoundException("No active exams found");
         }
+        
+        return PageResponse.of(filteredContent, pageable, page.getTotalElements());
     }
     
     private void initializeQuestions(Assessment assessment) {
@@ -205,8 +272,10 @@ public class ExamServiceImpl implements IExamService {
     }
 
     public Optional<ExamScheduleResponse> getExamSchedule(UUID examId) {
-        return assessmentRepository.findById(examId)
-                .map(examMapper::toScheduleResponse);
+        Assessment assessment = assessmentRepository.findById(examId)
+                .orElseThrow(() -> new ResourceNotFoundException("Exam schedule", examId.toString()));
+        
+        return Optional.of(examMapper.toScheduleResponse(assessment));
     }
 
     @Transactional
@@ -222,9 +291,6 @@ public class ExamServiceImpl implements IExamService {
             assessment.setAssessmentDate(request.schedule().assessmentDate());
             assessment.setStartTime(request.schedule().startTime());
             assessment.setEndTime(request.schedule().endTime());
-            if (request.schedule().isPublished() != null) {
-                assessment.setIsPublished(request.schedule().isPublished());
-            }
         }
 
         Assessment saved = assessmentRepository.save(assessment);
@@ -242,7 +308,7 @@ public class ExamServiceImpl implements IExamService {
                 .orElseThrow(() -> new IllegalStateException("Exam not found"));
 
         LocalDateTime assessmentStartDateTime = LocalDateTime.of(request.assessmentDate(), request.startTime());
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(CAMBODIA_ZONE);
 
         if (now.isAfter(assessmentStartDateTime) || now.isEqual(assessmentStartDateTime)) {
             throw new IllegalStateException("Cannot update schedule after assessment has started");
@@ -257,47 +323,6 @@ public class ExamServiceImpl implements IExamService {
     }
 
     @Transactional
-    public ExamResponse publishExam(UUID examId) {
-        Assessment assessment = assessmentRepository.findById(examId)
-                .orElseThrow(() -> new IllegalStateException("Exam not found"));
-
-        if (assessment.getAssessmentDate() == null || assessment.getStartTime() == null) {
-            throw new IllegalStateException("Cannot publish assessment without schedule");
-        }
-
-        LocalDateTime assessmentStartDateTime = LocalDateTime.of(assessment.getAssessmentDate(), assessment.getStartTime());
-        LocalDateTime now = LocalDateTime.now();
-
-        if (now.isAfter(assessmentStartDateTime) || now.isEqual(assessmentStartDateTime)) {
-            throw new IllegalStateException("Cannot publish assessment after start date");
-        }
-
-        assessment.setIsPublished(true);
-        Assessment saved = assessmentRepository.save(assessment);
-        saved = assessmentRepository.findByIdWithSections(saved.getAssessment_id())
-                .orElse(saved);
-        if (saved != null) {
-            initializeQuestions(saved);
-        }
-        return examMapper.toResponse(saved);
-    }
-
-    @Transactional
-    public ExamResponse unpublishExam(UUID examId) {
-        Assessment assessment = assessmentRepository.findById(examId)
-                .orElseThrow(() -> new IllegalStateException("Exam not found"));
-
-        assessment.setIsPublished(false);
-        Assessment saved = assessmentRepository.save(assessment);
-        saved = assessmentRepository.findByIdWithSections(saved.getAssessment_id())
-                .orElse(saved);
-        if (saved != null) {
-            initializeQuestions(saved);
-        }
-        return examMapper.toResponse(saved);
-    }
-
-    @Transactional
     public ExamResponse cloneExam(UUID examId) {
         Assessment originalExam = assessmentRepository.findById(examId)
                 .orElseThrow(() -> new IllegalStateException("Exam not found"));
@@ -309,7 +334,6 @@ public class ExamServiceImpl implements IExamService {
         clonedExam.setAssessmentDate(originalExam.getAssessmentDate());
         clonedExam.setStartTime(originalExam.getStartTime());
         clonedExam.setEndTime(originalExam.getEndTime());
-        clonedExam.setIsPublished(false);
 
         if (originalExam.getSections() != null && !originalExam.getSections().isEmpty()) {
             List<Section> clonedSections = originalExam.getSections().stream()
@@ -385,5 +409,41 @@ public class ExamServiceImpl implements IExamService {
     public Optional<QuestionResponse> getQuestionById(UUID questionId) {
         return questionRepository.findById(questionId)
                 .map(examMapper::toQuestionResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ExamResponse getActiveExamForStudent(UUID examId) {
+        UUID studentId = SecurityUtils.getCurrentUserId();
+        
+        if (studentId == null) {
+            throw new IllegalStateException("User is not authenticated");
+        }
+
+        Assessment assessment = assessmentRepository.findByIdWithSections(examId)
+                .orElseThrow(() -> new ResourceNotFoundException("Exam", examId.toString()));
+
+        if (!examValidationService.isExamActive(assessment)) {
+            throw new IllegalStateException("Exam is not currently active");
+        }
+
+        if (!studentAssessmentRepository.existsByStudentIdAndAssessmentId(studentId, examId)) {
+            throw new IllegalStateException("Assessment is not assigned to this student");
+        }
+
+        if (assessment.getSections() != null && !assessment.getSections().isEmpty()) {
+            List<Section> sectionsWithQuestions = sectionRepository.findByAssessmentIdWithQuestions(examId);
+            Map<UUID, Section> sectionMap = sectionsWithQuestions.stream()
+                    .collect(Collectors.toMap(Section::getSection_id, s -> s));
+            
+            assessment.getSections().forEach(section -> {
+                Section sectionWithQuestions = sectionMap.get(section.getSection_id());
+                if (sectionWithQuestions != null && sectionWithQuestions.getQuestions() != null) {
+                    section.setQuestions(sectionWithQuestions.getQuestions());
+                }
+            });
+        }
+        
+        return examMapper.toResponse(assessment);
     }
 }

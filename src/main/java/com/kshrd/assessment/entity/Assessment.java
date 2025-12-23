@@ -41,9 +41,6 @@ public class Assessment {
     @Column(name = "end_time")
     private LocalTime endTime;
     
-    @Column(name = "is_published")
-    private Boolean isPublished = false;
-    
     @CreatedBy
     @Column(name = "created_by")
     private UUID createdBy;

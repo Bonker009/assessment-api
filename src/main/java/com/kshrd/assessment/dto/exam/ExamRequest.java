@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public record ExamRequest(
         @NotBlank(message = "Name cannot be blank")
+
         String name,
         
         @NotNull(message = "IsQuiz cannot be null")

@@ -13,17 +13,21 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.kshrd.assessment.dto.response.PageRequest;
+import com.kshrd.assessment.dto.response.PageResponse;
+
 public interface IExamService {
     ExamResponse createExam(ExamRequest request);
     Optional<ExamResponse> getExamById(UUID examId);
     List<ExamResponse>  getMyExams();
+    PageResponse<ExamResponse> getMyExams(PageRequest pageRequest);
     List<ExamResponse> getAllExams();
+    PageResponse<ExamResponse> getAllExams(PageRequest pageRequest);
     List<ExamResponse> getActiveExams();
+    PageResponse<ExamResponse> getActiveExams(PageRequest pageRequest);
     Optional<ExamScheduleResponse> getExamSchedule(UUID examId);
     ExamResponse updateExam(UUID examId, ExamRequest request);
     ExamScheduleResponse updateSchedule(UUID examId, ExamScheduleRequest request);
-    ExamResponse publishExam(UUID examId);
-    ExamResponse unpublishExam(UUID examId);
     ExamResponse cloneExam(UUID examId);
     void deleteExam(UUID examId);
     void updateSection(UUID sectionId, SectionUpdateRequest request);
@@ -32,4 +36,5 @@ public interface IExamService {
     void deleteQuestion(UUID questionId);
     Optional<SectionResponse> getSectionById(UUID sectionId);
     Optional<QuestionResponse> getQuestionById(UUID questionId);
+    ExamResponse getActiveExamForStudent(UUID examId);
 }

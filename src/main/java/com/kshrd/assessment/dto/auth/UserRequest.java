@@ -11,6 +11,7 @@ public record UserRequest(
 
         @NotNull(message = "Password cannot be null")
         @NotEmpty(message = "Password cannot be empty")
+
         String password,
 
         @NotNull(message = "Email cannot be null")

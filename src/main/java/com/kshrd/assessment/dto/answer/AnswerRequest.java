@@ -11,9 +11,7 @@ public record AnswerRequest(
         @NotNull(message = "Assessment ID cannot be null")
         UUID assessmentId,
         
-        Map<String, Object> answer,
-        
-        Double score
+        Map<String, Object> answer
 ) {
 }
 

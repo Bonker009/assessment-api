@@ -24,8 +24,7 @@ public class ExamMapperImpl implements IExamMapper {
         Schedule schedule = new Schedule(
                 entity.getAssessmentDate(),
                 entity.getStartTime(),
-                entity.getEndTime(),
-                entity.getIsPublished()
+                entity.getEndTime()
         );
 
         Long totalSections = 0L;
@@ -69,8 +68,7 @@ public class ExamMapperImpl implements IExamMapper {
         Schedule schedule = new Schedule(
                 entity.getAssessmentDate(),
                 entity.getStartTime(),
-                entity.getEndTime(),
-                entity.getIsPublished()
+                entity.getEndTime()
         );
 
         return new ExamResponse(

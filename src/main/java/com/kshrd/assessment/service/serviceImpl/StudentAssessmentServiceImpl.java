@@ -2,17 +2,23 @@ package com.kshrd.assessment.service.serviceImpl;
 
 import com.kshrd.assessment.dto.answer.AnswerRequest;
 import com.kshrd.assessment.dto.answer.SubmitAnswersRequest;
+import com.kshrd.assessment.dto.response.PageRequest;
+import com.kshrd.assessment.dto.response.PageResponse;
 import com.kshrd.assessment.dto.studentassessment.GradeAssessmentRequest;
 import com.kshrd.assessment.dto.studentassessment.StudentAssessmentRequest;
 import com.kshrd.assessment.dto.studentassessment.StudentAssessmentResponse;
 import com.kshrd.assessment.dto.studentassessment.SubmitAssessmentRequest;
 import com.kshrd.assessment.entity.Assessment;
 import com.kshrd.assessment.entity.StudentAssessment;
-import com.kshrd.assessment.entity.StudentAssessmentId;
 import com.kshrd.assessment.mapper.IStudentAssessmentMapper;
 import com.kshrd.assessment.repository.AssessmentRepository;
 import com.kshrd.assessment.repository.StudentAssessmentRepository;
+import com.kshrd.assessment.aop.annotation.AuditSecurity;
+import com.kshrd.assessment.aop.annotation.LogError;
+import com.kshrd.assessment.aop.annotation.LogExecution;
+import com.kshrd.assessment.aop.annotation.LogPerformance;
 import com.kshrd.assessment.service.ExamValidationService;
+import com.kshrd.assessment.exception.ResourceNotFoundException;
 import com.kshrd.assessment.service.IAnswerService;
 import com.kshrd.assessment.service.IStudentAssessmentService;
 import com.kshrd.assessment.utils.SecurityUtils;
@@ -22,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,7 +36,13 @@ import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
+@LogExecution(logParameters = true, logReturnValue = false, description = "Student Assessment Service")
+@LogPerformance(thresholdMillis = 1500, description = "Student Assessment Service Performance")
+@LogError(logStackTrace = true, description = "Student Assessment Service Error Handling")
+@AuditSecurity(action = "Student Assessment Management", resource = "StudentAssessment", logParameters = true)
 public class StudentAssessmentServiceImpl implements IStudentAssessmentService {
+
+    private static final ZoneId UTC_ZONE = ZoneId.of("UTC");
     
     private final StudentAssessmentRepository studentAssessmentRepository;
     private final AssessmentRepository assessmentRepository;
@@ -49,18 +62,15 @@ public class StudentAssessmentServiceImpl implements IStudentAssessmentService {
         Assessment assessment = assessmentRepository.findById(assessmentId)
                 .orElseThrow(() -> new IllegalStateException("Assessment not found"));
         
-        if (!Boolean.TRUE.equals(assessment.getIsPublished())) {
-            throw new IllegalStateException("Cannot assign unpublished assessment to student");
-        }
-        
         StudentAssessment studentAssessment = new StudentAssessment();
         studentAssessment.setStudentId(studentId);
         studentAssessment.setAssessmentId(assessmentId);
-        studentAssessment.setStatus(Status.ASSIGNED);
+        studentAssessment.setStatus(Status.NOT_STARTED);
         studentAssessment.setScore(0.0);
         studentAssessment.setTotalScore(0.0);
         studentAssessment.setDurationInMinute(0.0);
         studentAssessment.setGradingStatus("not graded");
+        studentAssessment.setAttemptNo(1);
         
         StudentAssessment saved = studentAssessmentRepository.save(studentAssessment);
         return mapper.toResponse(saved);
@@ -74,7 +84,7 @@ public class StudentAssessmentServiceImpl implements IStudentAssessmentService {
                 .findByStudentIdAndAssessmentId(studentId, assessmentId)
                 .orElseThrow(() -> new IllegalStateException("Assessment not assigned to student"));
         
-        if (studentAssessment.getStatus() != Status.ASSIGNED) {
+        if (studentAssessment.getStatus() != Status.NOT_STARTED) {
             throw new IllegalStateException("Assessment cannot be started. Current status: " + studentAssessment.getStatus());
         }
         
@@ -84,7 +94,7 @@ public class StudentAssessmentServiceImpl implements IStudentAssessmentService {
         examValidationService.validateExamCanBeStarted(assessment);
         
         studentAssessment.setStatus(Status.IN_PROGRESS);
-        studentAssessment.setJoinAt(LocalDateTime.now());
+        studentAssessment.setJoinAt(LocalDateTime.now(UTC_ZONE));
         
         StudentAssessment saved = studentAssessmentRepository.save(studentAssessment);
         return mapper.toResponse(saved);
@@ -118,7 +128,7 @@ public class StudentAssessmentServiceImpl implements IStudentAssessmentService {
         studentAssessment.setScore(request.score());
         studentAssessment.setTotalScore(request.score());
         studentAssessment.setDurationInMinute(request.durationInMinute());
-        studentAssessment.setSubmittedAt(LocalDateTime.now());
+        studentAssessment.setSubmittedAt(LocalDateTime.now(UTC_ZONE));
         
         StudentAssessment saved = studentAssessmentRepository.save(studentAssessment);
         return mapper.toResponse(saved);
@@ -148,8 +158,7 @@ public class StudentAssessmentServiceImpl implements IStudentAssessmentService {
                 AnswerRequest answerWithAssessment = new AnswerRequest(
                         answerRequest.questionId(),
                         request.assessmentId(),
-                        answerRequest.answer(),
-                        answerRequest.score()
+                        answerRequest.answer()
                 );
                 answerService.saveOrUpdateAnswer(answerWithAssessment);
             }
@@ -166,7 +175,7 @@ public class StudentAssessmentServiceImpl implements IStudentAssessmentService {
         studentAssessment.setScore(request.score());
         studentAssessment.setTotalScore(request.score());
         studentAssessment.setDurationInMinute(request.durationInMinute());
-        studentAssessment.setSubmittedAt(LocalDateTime.now());
+        studentAssessment.setSubmittedAt(LocalDateTime.now(UTC_ZONE));
         
         StudentAssessment saved = studentAssessmentRepository.save(studentAssessment);
         return mapper.toResponse(saved);
@@ -184,6 +193,23 @@ public class StudentAssessmentServiceImpl implements IStudentAssessmentService {
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<StudentAssessmentResponse> getMyAssessments(PageRequest pageRequest) {
+        UUID studentId = SecurityUtils.getCurrentUserId();
+        
+        if (studentId == null) {
+            throw new IllegalStateException("User is not authenticated");
+        }
+        
+        var pageable = pageRequest.toPageable();
+        var page = studentAssessmentRepository.findByStudentId(studentId, pageable);
+        var content = page.getContent().stream()
+                .map(mapper::toResponse)
+                .collect(Collectors.toList());
+        return PageResponse.of(content, pageable, page.getTotalElements());
+    }
     
     public Optional<StudentAssessmentResponse> getMyAssessment(UUID assessmentId) {
         UUID studentId = SecurityUtils.getCurrentUserId();
@@ -192,8 +218,11 @@ public class StudentAssessmentServiceImpl implements IStudentAssessmentService {
             throw new IllegalStateException("User is not authenticated");
         }
         
-        return studentAssessmentRepository.findByStudentIdAndAssessmentId(studentId, assessmentId)
-                .map(mapper::toResponse);
+        StudentAssessment studentAssessment = studentAssessmentRepository
+                .findByStudentIdAndAssessmentId(studentId, assessmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Assessment", assessmentId.toString()));
+        
+        return Optional.of(mapper.toResponse(studentAssessment));
     }
     
     @Transactional
@@ -212,7 +241,6 @@ public class StudentAssessmentServiceImpl implements IStudentAssessmentService {
     }
     
     public Optional<StudentAssessment> findById(UUID studentId, UUID assessmentId) {
-        StudentAssessmentId id = new StudentAssessmentId(studentId, assessmentId);
-        return studentAssessmentRepository.findById(id);
+        return studentAssessmentRepository.findByStudentIdAndAssessmentId(studentId, assessmentId);
     }
 }

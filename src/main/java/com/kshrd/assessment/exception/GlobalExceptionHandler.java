@@ -11,9 +11,33 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
+    
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleResourceNotFoundException(
+            ResourceNotFoundException ex, WebRequest request) {
+        String path = request.getDescription(false).replace("uri=", "");
+        
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ex.getMessage(), HttpStatus.NOT_FOUND.value(), "RESOURCE_NOT_FOUND", path));
+    }
+    
+    @ExceptionHandler(jakarta.ws.rs.NotFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleJaxRsNotFoundException(
+            jakarta.ws.rs.NotFoundException ex, WebRequest request) {
+        String path = request.getDescription(false).replace("uri=", "");
+        
+        logger.warn("JAX-RS NotFoundException caught: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Resource not found in external service: " + ex.getMessage(), 
+                        HttpStatus.BAD_REQUEST.value(), "EXTERNAL_SERVICE_ERROR", path));
+    }
     
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Object>> handleMethodArgumentNotValidException(
@@ -87,6 +111,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage().contains("cannot") ||
                 ex.getMessage().contains("already exists") ||
                 ex.getMessage().contains("invalid"))) {
+            if (ex.getMessage().toLowerCase().contains("failed to retrieve")) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(ApiResponse.error(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), "EXTERNAL_SERVICE_ERROR", path));
+            }
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.error(ex.getMessage(), HttpStatus.BAD_REQUEST.value(), "BUSINESS_LOGIC_ERROR", path));
         }

@@ -1,7 +1,7 @@
 package com.kshrd.assessment.utils.enums;
 
 public enum Status {
-    ASSIGNED,
+    NOT_STARTED,
     IN_PROGRESS,
     SUBMITTED,
     GRADED,

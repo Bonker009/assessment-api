@@ -6,16 +6,24 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 
+/**
+ * Service for validating exam schedules and status.
+ * 
+ * Timezone Handling:
+ * - User input (LocalDate/LocalTime) is accepted as-is without timezone validation
+ * - Stored dates/times are timezone-agnostic (LocalDate/LocalTime)
+ * - Business logic comparisons use Cambodia timezone (Asia/Phnom_Penh) for current time
+ * - All timestamps stored in database use UTC
+ */
 @Service
 public class ExamValidationService {
 
+    private static final ZoneId CAMBODIA_ZONE = ZoneId.of("Asia/Phnom_Penh");
+
     public boolean isExamActive(Assessment assessment) {
         if (assessment == null) {
-            return false;
-        }
-
-        if (!Boolean.TRUE.equals(assessment.getIsPublished())) {
             return false;
         }
 
@@ -25,8 +33,8 @@ public class ExamValidationService {
             return false;
         }
 
-        LocalDate today = LocalDate.now();
-        LocalTime currentTime = LocalTime.now();
+        LocalDate today = LocalDate.now(CAMBODIA_ZONE);
+        LocalTime currentTime = LocalTime.now(CAMBODIA_ZONE);
         LocalDate assessmentDate = assessment.getAssessmentDate();
         LocalTime startTime = assessment.getStartTime();
         LocalTime endTime = assessment.getEndTime();
@@ -47,11 +55,11 @@ public class ExamValidationService {
             return false;
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(CAMBODIA_ZONE);
         LocalDate assessmentDate = assessment.getAssessmentDate();
         LocalTime endTime = assessment.getEndTime();
         LocalDateTime endDateTime = LocalDateTime.of(assessmentDate, endTime);
-        LocalDateTime currentDateTime = LocalDateTime.now();
+        LocalDateTime currentDateTime = LocalDateTime.now(CAMBODIA_ZONE);
 
         return currentDateTime.isAfter(endDateTime) || today.isAfter(assessmentDate);
     }
@@ -65,11 +73,11 @@ public class ExamValidationService {
             return false;
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(CAMBODIA_ZONE);
         LocalDate assessmentDate = assessment.getAssessmentDate();
         LocalTime startTime = assessment.getStartTime();
         LocalDateTime startDateTime = LocalDateTime.of(assessmentDate, startTime);
-        LocalDateTime currentDateTime = LocalDateTime.now();
+        LocalDateTime currentDateTime = LocalDateTime.now(CAMBODIA_ZONE);
 
         return today.equals(assessmentDate) && !currentDateTime.isBefore(startDateTime);
     }
@@ -77,10 +85,6 @@ public class ExamValidationService {
     public void validateExamCanBeStarted(Assessment assessment) {
         if (assessment == null) {
             throw new IllegalStateException("Exam not found");
-        }
-
-        if (!Boolean.TRUE.equals(assessment.getIsPublished())) {
-            throw new IllegalStateException("Exam is not published. Cannot start unpublished exam.");
         }
 
         if (assessment.getAssessmentDate() == null || 

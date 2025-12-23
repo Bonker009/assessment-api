@@ -3,7 +3,12 @@ package com.kshrd.assessment.service.serviceImpl;
 import com.kshrd.assessment.dto.auth.LoginRequest;
 import com.kshrd.assessment.dto.auth.LoginResponse;
 import com.kshrd.assessment.dto.auth.UserRequest;
+import com.kshrd.assessment.dto.student.StudentResponse;
 import com.kshrd.assessment.dto.teacher.TeacherResponse;
+import com.kshrd.assessment.aop.annotation.AuditSecurity;
+import com.kshrd.assessment.aop.annotation.LogError;
+import com.kshrd.assessment.aop.annotation.LogExecution;
+import com.kshrd.assessment.aop.annotation.LogPerformance;
 import com.kshrd.assessment.service.IKeycloakService;
 import jakarta.ws.rs.core.Response;
 import org.jspecify.annotations.NonNull;
@@ -25,9 +30,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.UUID;
 
 @Service
+@LogExecution(logParameters = false, logReturnValue = false, description = "Keycloak Service")
+@LogPerformance(thresholdMillis = 3000, description = "Keycloak Service Performance")
+@LogError(logStackTrace = true, description = "Keycloak Service Error Handling")
+@AuditSecurity(action = "Keycloak Authentication", resource = "Keycloak", logParameters = false)
 public class KeycloakServiceImpl implements IKeycloakService {
     private static final Logger logger = LoggerFactory.getLogger(KeycloakServiceImpl.class);
     private final Keycloak keycloak;
@@ -140,7 +148,7 @@ public class KeycloakServiceImpl implements IKeycloakService {
                         .serverUrl(authServerUrl)
                         .realm(realm)
                         .clientId(clientId)
-                        .clientSecret(clientSecret)// Public client that supports password grant
+                        .clientSecret(clientSecret)
                         .username(loginRequest.username())
                         .password(loginRequest.password())
                         .grantType(OAuth2Constants.PASSWORD)
@@ -179,21 +187,125 @@ public class KeycloakServiceImpl implements IKeycloakService {
 
     @Override
     public List<TeacherResponse> getAllTeachers() {
+        try {
+            RealmResource realmResource = keycloak.realm(realm);
 
-        ClientResource clientResource =
-                keycloak.realm(realm).clients().get(clientId);
+            List<UserRepresentation> users = null;
 
-        List<UserRepresentation> users =
-                clientResource.roles()
-                        .get("role_teacher")
-                        .getUserMembers();
+            try {
+                ClientRepresentation client = realmResource.clients()
+                        .findByClientId(clientId)
+                        .stream()
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException("Client not found: " + clientId));
+                System.out.println("Get client Id : " + client.getId());
+                ClientResource clientResource = realmResource.clients().get(client.getId());
+                System.out.println("Get Roles : " + clientResource.roles());
 
-        return users.stream()
-                .map(user -> new TeacherResponse(
-                        user.getId(),
-                        safe(user.getUsername()),
-                        safe(user.getEmail())
-                ))
-                .toList();
+                try {
+                    users = clientResource.roles()
+                            .get("role_teacher")
+                            .getUserMembers();
+                    logger.debug("Found {} users with client role 'role_teacher'", users != null ? users.size() : 0);
+                } catch (jakarta.ws.rs.NotFoundException e) {
+                    logger.debug("Client role 'role_teacher' not found, trying realm role");
+                }
+            } catch (Exception e) {
+                logger.debug("Error accessing client roles, trying realm roles: {}", e.getMessage());
+            }
+
+            if (users == null || users.isEmpty()) {
+                try {
+                    users = realmResource.roles()
+                            .get("role_teacher")
+                            .getUserMembers();
+                    logger.debug("Found {} users with realm role 'role_teacher'", users != null ? users.size() : 0);
+                } catch (jakarta.ws.rs.NotFoundException e) {
+                    logger.warn("Role 'role_teacher' not found as client or realm role: {}", e.getMessage());
+                    return java.util.Collections.emptyList();
+                }
+            }
+
+            if (users == null || users.isEmpty()) {
+                logger.debug("No users found with role 'role_teacher'");
+                return java.util.Collections.emptyList();
+            }
+
+            return users.stream()
+                    .map(user -> new TeacherResponse(
+                            user.getId(),
+                            safe(user.getUsername()),
+                            safe(user.getEmail())
+                    ))
+                    .toList();
+        } catch (jakarta.ws.rs.NotFoundException e) {
+            logger.warn("Resource not found in Keycloak: {}", e.getMessage());
+            return java.util.Collections.emptyList();
+        } catch (Exception e) {
+            logger.error("Error retrieving teachers from Keycloak: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to retrieve teachers: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public List<StudentResponse> getAllStudents() {
+        try {
+            RealmResource realmResource = keycloak.realm(realm);
+
+            List<UserRepresentation> students = null;
+
+            try {
+                ClientRepresentation client = realmResource.clients()
+                        .findByClientId(clientId)
+                        .stream()
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException("Client not found: " + clientId));
+
+                ClientResource clientResource = realmResource.clients().get(client.getId());
+
+                try {
+                    students = clientResource
+                            .roles()
+                            .get("role_student")
+                            .getUserMembers();
+                    logger.debug("Found {} users with client role 'role_student'", students != null ? students.size() : 0);
+                } catch (jakarta.ws.rs.NotFoundException e) {
+                    logger.debug("Client role 'role_student' not found, trying realm role");
+                }
+            } catch (Exception e) {
+                logger.debug("Error accessing client roles, trying realm roles: {}", e.getMessage());
+            }
+
+            if (students == null || students.isEmpty()) {
+                try {
+                    students = realmResource.roles()
+                            .get("role_student")
+                            .getUserMembers();
+                    logger.debug("Found {} users with realm role 'role_student'", students != null ? students.size() : 0);
+                } catch (jakarta.ws.rs.NotFoundException e) {
+                    logger.warn("Role 'role_student' not found as client or realm role: {}", e.getMessage());
+                    return java.util.Collections.emptyList();
+                }
+            }
+
+            if (students == null || students.isEmpty()) {
+                logger.debug("No users found with role 'role_student'");
+                return java.util.Collections.emptyList();
+            }
+
+            return students.stream()
+                    .map(student ->
+                            new StudentResponse(
+                                    student.getId(),
+                                    student.getUsername(),
+                                    student.getEmail()))
+                    .toList();
+        } catch (jakarta.ws.rs.NotFoundException e) {
+            logger.warn("Resource not found in Keycloak: {}", e.getMessage());
+            return java.util.Collections.emptyList();
+        } catch (Exception e) {
+            logger.error("Error retrieving students from Keycloak: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to retrieve students: " + e.getMessage(), e);
+        }
     }
 }

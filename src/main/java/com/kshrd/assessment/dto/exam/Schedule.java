@@ -13,9 +13,7 @@ public record Schedule(
         @NotNull
         LocalTime startTime,
         @NotNull
-        LocalTime endTime,
-        @NotNull
-        Boolean isPublished
+        LocalTime endTime
 ) {
 }
 

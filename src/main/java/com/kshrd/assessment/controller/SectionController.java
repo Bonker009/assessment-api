@@ -42,7 +42,8 @@ public class SectionController {
             @PathVariable UUID sectionId,
             @RequestBody @Valid SectionUpdateRequest request) {
         examService.updateSection(sectionId, request);
-        return ResponseUtil.ok(null, "Section updated successfully");
+        Void data = null;
+        return ResponseUtil.ok(data, "Section updated successfully");
     }
 
     @DeleteMapping("/{sectionId}")

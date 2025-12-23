@@ -96,5 +96,13 @@ public class ResponseUtil {
     public static <T> ResponseEntity<ApiResponse<T>> status(HttpStatus status, ApiResponse<T> response) {
         return ResponseEntity.status(status).body(response);
     }
+    
+    public static <T> ResponseEntity<ApiResponse<PageResponse<T>>> ok(PageResponse<T> pageData) {
+        return ResponseEntity.ok(ApiResponse.success(pageData, "Data retrieved successfully"));
+    }
+    
+    public static <T> ResponseEntity<ApiResponse<PageResponse<T>>> ok(PageResponse<T> pageData, String message) {
+        return ResponseEntity.ok(ApiResponse.success(pageData, message));
+    }
 }
 

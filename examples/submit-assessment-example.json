@@ -1,0 +1,41 @@
+{
+  "assessmentId": "550e8400-e29b-41d4-a716-446655440000",
+  "score": 85.5,
+  "durationInMinute": 45.5,
+  "answers": [
+    {
+      "questionId": "550e8400-e29b-41d4-a716-446655440001",
+      "assessmentId": "550e8400-e29b-41d4-a716-446655440000",
+      "answer": {
+        "selectedOption": 2
+      },
+      "score": 10.0
+    },
+    {
+      "questionId": "550e8400-e29b-41d4-a716-446655440002",
+      "assessmentId": "550e8400-e29b-41d4-a716-446655440000",
+      "answer": {
+        "value": true
+      },
+      "score": 5.0
+    },
+    {
+      "questionId": "550e8400-e29b-41d4-a716-446655440003",
+      "assessmentId": "550e8400-e29b-41d4-a716-446655440000",
+      "answer": {
+        "text": "Polymorphism is a core concept in object-oriented programming that allows objects of different types to be accessed through the same interface. It enables a single interface to represent different underlying forms (data types)."
+      },
+      "score": 15.0
+    },
+    {
+      "questionId": "550e8400-e29b-41d4-a716-446655440004",
+      "assessmentId": "550e8400-e29b-41d4-a716-446655440000",
+      "answer": {
+        "code": "public String reverseString(String str) {\n    StringBuilder reversed = new StringBuilder();\n    for (int i = str.length() - 1; i >= 0; i--) {\n        reversed.append(str.charAt(i));\n    }\n    return reversed.toString();\n}",
+        "language": "java"
+      },
+      "score": 20.0
+    }
+  ]
+}
+

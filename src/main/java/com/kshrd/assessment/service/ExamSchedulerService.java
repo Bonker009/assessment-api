@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 
 @Service
@@ -21,22 +23,24 @@ import java.util.List;
 @Slf4j
 public class ExamSchedulerService {
 
+    private static final ZoneId CAMBODIA_ZONE = ZoneId.of("Asia/Phnom_Penh");
+    private static final ZoneId UTC_ZONE = ZoneId.of("UTC");
+
     private final StudentAssessmentRepository studentAssessmentRepository;
     private final AssessmentRepository assessmentRepository;
 
-    @Scheduled(cron = "0 * * * * ?")
+    @Scheduled(cron = "0 0 * * * *", zone = "UTC")
     @Transactional
     public void expireInProgressAssessments() {
         log.debug("Running scheduled task: expireInProgressAssessments");
         
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(CAMBODIA_ZONE);
         LocalDate today = now.toLocalDate();
         
         List<Assessment> endedAssessments = assessmentRepository.findAll().stream()
                 .filter(assessment -> {
                     if (assessment.getAssessmentDate() == null || 
-                        assessment.getEndTime() == null || 
-                        !assessment.getIsPublished()) {
+                        assessment.getEndTime() == null) {
                         return false;
                     }
                     
@@ -64,7 +68,10 @@ public class ExamSchedulerService {
             
             for (StudentAssessment studentAssessment : inProgressAssessments) {
                 studentAssessment.setStatus(Status.EXPIRED);
-                studentAssessment.setSubmittedAt(now);
+                LocalDateTime nowUtc = ZonedDateTime.of(now, CAMBODIA_ZONE)
+                        .withZoneSameInstant(UTC_ZONE)
+                        .toLocalDateTime();
+                studentAssessment.setSubmittedAt(nowUtc);
                 
                 if (studentAssessment.getScore() == null || studentAssessment.getScore() == 0.0) {
                     studentAssessment.setScore(0.0);
@@ -72,8 +79,11 @@ public class ExamSchedulerService {
                 }
                 
                 if (studentAssessment.getJoinAt() != null) {
+                    LocalDateTime joinAtCambodia = ZonedDateTime.of(studentAssessment.getJoinAt(), UTC_ZONE)
+                            .withZoneSameInstant(CAMBODIA_ZONE)
+                            .toLocalDateTime();
                     long minutes = java.time.Duration.between(
-                            studentAssessment.getJoinAt(), 
+                            joinAtCambodia, 
                             now
                     ).toMinutes();
                     studentAssessment.setDurationInMinute((double) minutes);
@@ -94,7 +104,7 @@ public class ExamSchedulerService {
         }
     }
 
-    @Scheduled(cron = "0 0 2 * * ?")
+    @Scheduled(cron = "0 0 * * * *", zone = "UTC")
     @Transactional
     public void dailyCleanup() {
         log.info("Running daily cleanup task");

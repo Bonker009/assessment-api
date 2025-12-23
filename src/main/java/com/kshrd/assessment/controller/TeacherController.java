@@ -30,7 +30,7 @@ public class TeacherController {
     @GetMapping
     @PreAuthorize("hasRole('teacher') or hasRole('admin')")
     @Operation(summary = "Get all teachers", description = "Retrieves all teachers")
-    public ResponseEntity<ApiResponse<List<TeacherResponse>>> getMyAssessments() {
+    public ResponseEntity<ApiResponse<List<TeacherResponse>>> getAllTeachers() {
         List<TeacherResponse> responses = keycloakService.getAllTeachers();
         return ResponseUtil.ok(responses, "Teachers retrieved successfully");
     }

@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Data
 @Builder
@@ -14,6 +15,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ApiResponse<T> {
+    
+    private static final ZoneId UTC_ZONE = ZoneId.of("UTC");
     
     private Boolean success;
     
@@ -35,7 +38,7 @@ public class ApiResponse<T> {
                 .statusCode(200)
                 .message("Request successful")
                 .data(data)
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now(UTC_ZONE))
                 .build();
     }
     
@@ -45,7 +48,7 @@ public class ApiResponse<T> {
                 .statusCode(200)
                 .message(message)
                 .data(data)
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now(UTC_ZONE))
                 .build();
     }
     
@@ -55,7 +58,7 @@ public class ApiResponse<T> {
                 .statusCode(statusCode)
                 .message(message)
                 .data(data)
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now(UTC_ZONE))
                 .build();
     }
     
@@ -64,7 +67,7 @@ public class ApiResponse<T> {
                 .success(true)
                 .statusCode(200)
                 .message(message)
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now(UTC_ZONE))
                 .build();
     }
     
@@ -73,7 +76,7 @@ public class ApiResponse<T> {
                 .success(true)
                 .statusCode(statusCode)
                 .message(message)
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now(UTC_ZONE))
                 .build();
     }
     
@@ -82,7 +85,7 @@ public class ApiResponse<T> {
                 .success(false)
                 .statusCode(statusCode)
                 .message(message)
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now(UTC_ZONE))
                 .build();
     }
     
@@ -92,7 +95,7 @@ public class ApiResponse<T> {
                 .statusCode(statusCode)
                 .message(message)
                 .errorCode(errorCode)
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now(UTC_ZONE))
                 .build();
     }
     
@@ -103,7 +106,7 @@ public class ApiResponse<T> {
                 .message(message)
                 .errorCode(errorCode)
                 .path(path)
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now(UTC_ZONE))
                 .build();
     }
 }
